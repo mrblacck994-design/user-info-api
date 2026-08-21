@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>User Info Checker</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;background:#0b1020;color:#eef2ff}
+    .wrap{max-width:760px;margin:0 auto;padding:28px 16px}.card{background:#121a2e;border:1px solid #26324f;border-radius:20px;padding:22px;box-shadow:0 12px 35px #0005}
+    h1{margin:0 0 8px;font-size:28px}.muted{color:#9ca9c7;margin:0 0 22px}.row{display:flex;gap:10px}
+    input{flex:1;min-width:0;padding:14px 15px;border-radius:12px;border:1px solid #34415f;background:#0d1425;color:#fff;font-size:16px;outline:none}
+    button{border:0;border-radius:12px;padding:0 20px;background:#5b7cff;color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.6;cursor:not-allowed}
+    #message{margin-top:16px;padding:12px;border-radius:12px;display:none}.error{background:#3a1820;color:#ffb8c2}.ok{background:#153321;color:#b9f6c9}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:18px}.item{background:#0d1425;border:1px solid #25314d;border-radius:14px;padding:15px}
+    .label{font-size:12px;color:#8f9bb8;text-transform:uppercase;letter-spacing:.06em}.value{margin-top:6px;font-size:18px;font-weight:700;word-break:break-word}
+    pre{white-space:pre-wrap;word-break:break-word;background:#080d18;padding:14px;border-radius:12px;overflow:auto;color:#cdd7ef}
+    @media(max-width:560px){.row{flex-direction:column}button{height:48px}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main class="wrap">
+  <section class="card">
+    <h1>User Info Checker</h1>
+    <p class="muted">Enter an authorized User ID to request account information from your backend.</p>
+    <form id="form" class="row">
+      <input id="userId" name="userId" placeholder="Enter User ID" autocomplete="off" required>
+      <button id="searchBtn" type="submit">Search</button>
+    </form>
+    <div id="message"></div>
+    <div id="result" style="display:none">
+      <div class="grid">
+        <div class="item"><div class="label">User ID</div><div class="value" id="rId">—</div></div>
+        <div class="item"><div class="label">Phone</div><div class="value" id="rPhone">—</div></div>
+        <div class="item"><div class="label">Balance</div><div class="value" id="rBalance">—</div></div>
+        <div class="item"><div class="label">Status</div><div class="value" id="rStatus">—</div></div>
+      </div>
+      <h3>API Response</h3>
+      <pre id="raw"></pre>
+    </div>
+  </section>
+</main>
+<script>
+const form = document.getElementById("form");
+const input = document.getElementById("userId");
+const btn = document.getElementById("searchBtn");
+const msg = document.getElementById("message");
+const result = document.getElementById("result");
+
+function showMessage(text, type="error"){
+  msg.textContent = text;
+  msg.className = type;
+  msg.style.display = "block";
+}
+function pick(obj, keys){
+  for (const key of keys){
+    const parts = key.split(".");
+    let v = obj;
+    for (const p of parts) v = v?.[p];
+    if (v !== undefined && v !== null && v !== "") return v;
+  }
+  return "—";
+}
+
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const userId = input.value.trim();
+  if (!userId) return;
+
+  btn.disabled = true;
+  btn.textContent = "Searching…";
+  msg.style.display = "none";
+  result.style.display = "none";
+
+  try{
+    const res = await fetch("/api/user?userId=" + encodeURIComponent(userId), {
+      headers: { "Accept": "application/json" }
+    });
+    const data = await res.json().catch(()=>({error:"Server returned non-JSON response"}));
+    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+
+    const payload = data.data ?? data;
+    document.getElementById("rId").textContent =
+      pick(payload, ["userId","id","uid","data.userId"]) || userId;
+    document.getElementById("rPhone").textContent =
+      pick(payload, ["phone","mobile","mobilePhone","data.phone"]);
+    document.getElementById("rBalance").textContent =
+      pick(payload, ["balance","amount","data.balance"]);
+    document.getElementById("rStatus").textContent =
+      pick(payload, ["status","userStatus","data.status"]);
+
+    document.getElementById("raw").textContent = JSON.stringify(data, null, 2);
+    result.style.display = "block";
+    showMessage("User information loaded.", "ok");
+  }catch(err){
+    showMessage(err.message || "Request failed.");
+  }finally{
+    btn.disabled = false;
+    btn.textContent = "Search";
+  }
+});
+</script>
+</body>
+</html>
